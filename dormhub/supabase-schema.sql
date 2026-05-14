@@ -119,6 +119,16 @@ ALTER TABLE tenants ADD COLUMN IF NOT EXISTS course TEXT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS year_level INT;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS profile_color TEXT DEFAULT '#6ee7b7';
 
+CREATE OR REPLACE FUNCTION public.current_user_role()
+RETURNS TEXT
+LANGUAGE SQL
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT role FROM public.profiles WHERE id = auth.uid()
+$$;
+
 DROP POLICY IF EXISTS "Users read own profile" ON profiles;
 DROP POLICY IF EXISTS "Admins read all profiles" ON profiles;
 DROP POLICY IF EXISTS "Users update own profile" ON profiles;
@@ -140,9 +150,7 @@ CREATE POLICY "Users read own profile"
   ON profiles FOR SELECT USING (auth.uid() = id);
 
 CREATE POLICY "Admins read all profiles"
-  ON profiles FOR SELECT USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  ON profiles FOR SELECT USING (public.current_user_role() = 'admin');
 
 CREATE POLICY "Users update own profile"
   ON profiles FOR UPDATE USING (auth.uid() = id);
@@ -154,14 +162,10 @@ CREATE POLICY "Anyone can view rooms"
   ON rooms FOR SELECT USING (true);
 
 CREATE POLICY "Admins manage rooms"
-  ON rooms FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  ON rooms FOR ALL USING (public.current_user_role() = 'admin');
 
 CREATE POLICY "Admins manage tenants"
-  ON tenants FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','staff'))
-  );
+  ON tenants FOR ALL USING (public.current_user_role() IN ('admin','staff'));
 
 CREATE POLICY "Tenant views own record"
   ON tenants FOR SELECT USING (user_id = auth.uid());
@@ -172,9 +176,7 @@ CREATE POLICY "Tenant views own payments"
   );
 
 CREATE POLICY "Admins manage payments"
-  ON payments FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin')
-  );
+  ON payments FOR ALL USING (public.current_user_role() = 'admin');
 
 CREATE POLICY "Tenant creates own requests"
   ON maintenance_requests FOR INSERT WITH CHECK (
@@ -187,14 +189,10 @@ CREATE POLICY "Tenant views own requests"
   );
 
 CREATE POLICY "Staff manages maintenance"
-  ON maintenance_requests FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','staff'))
-  );
+  ON maintenance_requests FOR ALL USING (public.current_user_role() IN ('admin','staff'));
 
 CREATE POLICY "Staff manages visitor logs"
-  ON visitor_logs FOR ALL USING (
-    EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role IN ('admin','staff'))
-  );
+  ON visitor_logs FOR ALL USING (public.current_user_role() IN ('admin','staff'));
 
 CREATE POLICY "Users view own notifications"
   ON notifications FOR SELECT USING (user_id = auth.uid());
